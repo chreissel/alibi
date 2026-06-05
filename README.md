@@ -18,7 +18,7 @@ physical basis of glitch vetoing, and it is what this dataset encodes across thr
 | Class          | Strain channel (H1)                    | Witness channel                         |
 |----------------|----------------------------------------|-----------------------------------------|
 | **Signal**     | real noise + injected gravitational wave (GW) signal        | noise only (a GW does not couple here)  |
-| **Glitch**     | real noise + injected **real glitch** (O3a blip/koi-fish/tomte) | noise + LTI-coupled copy synthesised *from* the strain glitch |
+| **Glitch**     | real noise + injected **real glitch** (O3a scattered-light/whistle/power-line) | noise + LTI-coupled copy synthesised *from* the strain glitch |
 | **Background** | real noise only                        | noise only                              |
 
 The signal and glitch transients are placed at the same time location, so the witness, not the arrival time, is the discriminator.
@@ -27,14 +27,17 @@ The signal and glitch transients are placed at the same time location, so the wi
 
 * **Signals**: ml4gw CBC waveforms (`IMRPhenomD`), projected onto the detector and rescaled
   to a target network SNR (`ml4gw.gw.reweight_snrs`). We start by considering shorter signals from binary black hole merging.
-* **Glitches**: *real* O3a glitch morphologies — **Blip**, **Koi_Fish**, **Tomte** —
-  selected from the GravitySpy catalogue and cropped from GWOSC strain into a *glitch bank*
-  (`download_glitches.py` → `glitches.py`). The real glitch goes into the **strain**, and the
-  **witness is synthesised from it** by an *LTI Butterworth filter* (`witness = C(strain
-  glitch)`). Only a fraction `alpha` of the witness power is coherent with the strain glitch
-  (the rest is an independent component), so `alpha` sets how informative the witness is.
-  (These classes have no real auxiliary witness, so the witness is a deliberate model; an
-  ad-hoc `SineGaussian` source is also available via `glitch.source: sine_gaussian`.)
+* **Glitches**: *real* O3a glitch morphologies — **Scattered_Light**, **Whistle**,
+  **Power_Line** — selected from the GravitySpy catalogue and cropped from GWOSC strain into
+  a *glitch bank* (`download_glitches.py` → `glitches.py`). These classes are chosen because
+  they are *genuinely witnessed* by auxiliary channels in real interferometers (scattered
+  light by seismic/length channels, whistles by RF/PSL channels, power-line glitches by
+  mains/magnetometer monitors), so the synthetic witness is physically motivated. The real
+  glitch goes into the **strain**, and the **witness is synthesised from it** by an *LTI
+  Butterworth filter* (`witness = C(strain glitch)`) — modelled per class on that class's real
+  monitor (see `witness.coupling.per_class`). Only a fraction `alpha` of the witness power is
+  coherent with the strain glitch, so `alpha` sets how informative the witness is. (An ad-hoc
+  `SineGaussian` source is also available via `glitch.source: sine_gaussian`.)
 * **Background**: real H1 strain from GWOSC O3a; the witness background is synthesised
   Gaussian noise.
 * **Whitening**: per-channel PSD estimation + `ml4gw.transforms.Whiten`.
@@ -60,7 +63,7 @@ pip install -r requirements.txt
    This writes `./data/background_data/background-*.hdf5`. 
    It can be omitted when working on the FASRC cluster since the O3a dataset is already downloaded and available following the path: `/n/holystore01/LABS/iaifi_lab/Lab/creissel/SparseBank/background_data/`.
 
-2. **Build the glitch bank** (real O3a Blip/Koi_Fish/Tomte; needs GravitySpy + GWOSC access):
+2. **Build the glitch bank** (real O3a Scattered_Light/Whistle/Power_Line; needs GravitySpy + GWOSC access):
 
    ```bash
    python download_glitches.py --config configs/config_H1.yaml
@@ -87,7 +90,7 @@ One HDF5 file per class, each containing:
   with `T = waveform_duration * sample_rate`.
 * `label` — `(N,)` int: `0=background, 1=signal, 2=glitch`.
 * one dataset per sampled parameter (e.g. `snr`, `chirp_mass` for signals;
-  `glitch_class` (0=Blip, 1=Koi_Fish, 2=Tomte), `gravityspy_snr`, `peak_frequency`,
+  `glitch_class` (0=Scattered_Light, 1=Whistle, 2=Power_Line), `gravityspy_snr`, `peak_frequency`,
   `strain_snr`, `witness_snr` for glitches).
 * attrs: `label` (the class id) and `channels` (`[strain, witness]`); `glitch.h5` also
   has `glitch_classes` (the `glitch_class` id→name map).
@@ -103,4 +106,4 @@ One HDF5 file per class, each containing:
 * `witness.coupling.alpha` — strain↔witness coherence (the main "how useful is the witness"
   knob); `witness.coupling.filter` — the Butterworth coupling band (`witness = C(strain glitch)`).
 * `witness.coupling.per_class` — optional per-class `alpha`/`filter` overrides giving
-  Blip/Koi_Fish/Tomte distinguishable witness signatures.
+  Scattered_Light/Whistle/Power_Line distinguishable witness signatures.

@@ -1,4 +1,10 @@
-"""Real glitch bank: O3a Blip / Koi_Fish / Tomte morphologies.
+"""Real glitch bank: O3a Scattered_Light / Whistle / Power_Line morphologies.
+
+These classes are chosen because they are *genuinely witnessed* by auxiliary
+channels in real interferometers -- scattered light by seismic/length-sensing
+channels, whistles by RF/PSL channels, power-line glitches by mains-voltage and
+magnetometer monitors -- so synthesising a witness for them is physically
+motivated (unlike blips/koi-fish/tomtes, which have no reliable aux witness).
 
 In this dataset the **strain** carries the *real* glitch transient and the
 **witness** is synthesised *from* the strain glitch by an LTI coupling
@@ -10,15 +16,15 @@ Two entry points:
 * :func:`build_real_glitch_bank` -- download real glitches from GWOSC using
   GravitySpy trigger times (needs network access to the GravitySpy catalogue and
   GWOSC). Run it on a data-enabled machine via ``download_glitches.py``.
-* :func:`make_synthetic_glitch_bank` -- crude offline stand-ins (blip/koi-fish/
-  tomte-like) so the loader -> witness -> injection path is testable without any
-  network access.
+* :func:`make_synthetic_glitch_bank` -- crude offline stand-ins (scattered-light/
+  whistle/power-line-like) so the loader -> witness -> injection path is testable
+  without any network access.
 
 Either way the bank is an HDF5 file with:
   ``source``          (N, T) float  -- RMS-normalised strain-domain glitch g(t),
                                        peak aligned to ``right_pad`` (same time
                                        location as a CBC coalescence),
-  ``glitch_class``    (N,)   int    -- 0=Blip, 1=Koi_Fish, 2=Tomte,
+  ``glitch_class``    (N,)   int    -- 0=Scattered_Light, 1=Whistle, 2=Power_Line,
   ``gravityspy_snr``  (N,)   float  -- catalogue SNR (nan for synthetic),
   ``peak_frequency``  (N,)   float  -- catalogue peak frequency [Hz],
   ``gps``             (N,)   float  -- trigger GPS time (0 for synthetic).
@@ -30,7 +36,7 @@ import h5py
 import numpy as np
 import torch
 
-GLITCH_CLASSES = ["Blip", "Koi_Fish", "Tomte"]
+GLITCH_CLASSES = ["Scattered_Light", "Whistle", "Power_Line"]
 CLASS_TO_ID = {c: i for i, c in enumerate(GLITCH_CLASSES)}
 
 _BANK_CACHE: dict = {}
@@ -51,32 +57,32 @@ def _align_peak(wave: np.ndarray, sample_rate: int, right_pad: float) -> np.ndar
 # Synthetic bank (offline; for testing without GWOSC/GravitySpy access)
 # ---------------------------------------------------------------------------
 def _synthetic_morphology(cls: str, t: np.ndarray, rng: np.random.Generator) -> np.ndarray:
-    """A crude blip/koi-fish/tomte-like waveform centred at t=0.
+    """A crude scattered-light / whistle / power-line-like waveform centred at t=0.
 
     These are *not* physically faithful -- they only need distinct, plausible
     morphologies so the pipeline can be exercised offline. The real bank built by
     :func:`build_real_glitch_bank` replaces them with genuine O3a glitches.
     """
-    if cls == "Blip":  # short, broadband, symmetric teardrop
-        env = np.exp(-(t**2) / (2 * 0.004**2))
-        carrier = sum(np.sin(2 * np.pi * f * t + rng.uniform(0, 2 * np.pi))
-                      for f in (80.0, 150.0, 260.0))
-        return env * carrier
-    if cls == "Koi_Fish":  # louder, broader, with low-frequency modulation
-        env = np.exp(-(t**2) / (2 * 0.012**2))
-        carrier = sum(np.sin(2 * np.pi * f * t) for f in (60.0, 120.0, 200.0, 300.0))
-        return env * carrier * (1.0 + 0.5 * np.sin(2 * np.pi * 40.0 * t))
-    if cls == "Tomte":  # triangular envelope, lower frequency
-        env = np.maximum(0.0, 1.0 - np.abs(t) / 0.02)
-        carrier = np.sin(2 * np.pi * 45.0 * t + rng.uniform(0, 2 * np.pi))
-        return env * carrier
+    if cls == "Scattered_Light":  # long, low-frequency stacked arches (seismic-driven)
+        env = np.exp(-(t**2) / (2 * 0.12**2))
+        wave = sum(np.sin(2 * np.pi * f * t + rng.uniform(0, 2 * np.pi))
+                   for f in (18.0, 32.0, 46.0))
+        return env * wave
+    if cls == "Whistle":  # high-frequency swept track (RF beat note)
+        env = np.exp(-(t**2) / (2 * 0.05**2))
+        f0, k = 700.0, 3000.0
+        return env * np.sin(2 * np.pi * (f0 * t + 0.5 * k * t * t) + rng.uniform(0, 2 * np.pi))
+    if cls == "Power_Line":  # narrowband 60 Hz mains burst (+harmonic)
+        env = np.exp(-(t**2) / (2 * 0.08**2))
+        ph = rng.uniform(0, 2 * np.pi)
+        return env * (np.sin(2 * np.pi * 60.0 * t + ph) + 0.3 * np.sin(2 * np.pi * 120.0 * t))
     raise ValueError(f"unknown synthetic class {cls!r}")
 
 
 def make_synthetic_glitch_bank(
     out_path, sample_rate, duration, right_pad, classes=None, n_per_class=64, seed=0
 ):
-    """Write a small offline glitch bank of synthetic blip/koi-fish/tomte shapes."""
+    """Write a small offline glitch bank of synthetic scattered-light/whistle/power-line shapes."""
     classes = list(classes) if classes is not None else list(GLITCH_CLASSES)
     rng = np.random.default_rng(seed)
     size = int(duration * sample_rate)

@@ -5,10 +5,10 @@ Two kinds of transients are produced here, both with ml4gw:
 * ``generate_signals`` -- astrophysical CBC (BBH) signals, projected onto the
   detector(s). Adapted from chreissel/GWDatasetGeneration.
 * ``generate_glitch_sources`` -- the glitch transient that goes into the strain.
-  By default these are *real* O3a Blip/Koi_Fish/Tomte morphologies sampled from a
-  glitch bank (``glitches.py``); a SineGaussian fallback is also available. The
-  returned single-channel g(t) is the strain glitch, and the witness is
-  synthesised *from* it in ``witness.py``.
+  By default these are *real* O3a Scattered_Light/Whistle/Power_Line morphologies
+  sampled from a glitch bank (``glitches.py``); a SineGaussian fallback is also
+  available. The returned single-channel g(t) is the strain glitch, and the
+  witness is synthesised *from* it in ``witness.py``.
 """
 
 import importlib
@@ -121,8 +121,8 @@ def generate_glitch_sources(config, device: str):
 
     Selected by ``config.glitch.source``:
 
-    * ``gravityspy`` (default) -- real O3a Blip/Koi_Fish/Tomte morphologies sampled
-      from the glitch bank at ``config.glitch.gravityspy.bank_path`` (built by
+    * ``gravityspy`` (default) -- real O3a Scattered_Light/Whistle/Power_Line
+      morphologies sampled from ``config.glitch.gravityspy.bank_path`` (built by
       ``download_glitches.py`` or, offline, by ``glitches.make_synthetic_glitch_bank``).
     * ``sine_gaussian`` -- ad-hoc SineGaussian bursts from ``config.glitch.prior``.
 

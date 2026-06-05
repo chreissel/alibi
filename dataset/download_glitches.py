@@ -1,4 +1,4 @@
-"""Build the O3a glitch bank (Blip / Koi_Fish / Tomte) from GravitySpy + GWOSC.
+"""Build the O3a glitch bank (Scattered_Light / Whistle / Power_Line) from GravitySpy + GWOSC.
 
 Run this on a machine with network access to the GravitySpy catalogue and GWOSC
 open data. It downloads real glitch morphologies into the HDF5 bank that

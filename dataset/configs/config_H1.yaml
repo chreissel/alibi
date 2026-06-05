@@ -51,14 +51,15 @@ snr_reweighting:
 
 # --- glitch -----------------------------------------------------------------
 glitch:
-    # 'gravityspy' -> real O3a Blip/Koi_Fish/Tomte morphologies (build the bank
+    # 'gravityspy' -> real O3a Scattered_Light/Whistle/Power_Line glitches (build the bank
     #                 first with download_glitches.py). 'sine_gaussian' -> ad-hoc
     #                 bursts from `prior` below (no data access needed).
     source: gravityspy
     gravityspy:
         run: O3a
         ifo: H1
-        classes: [Blip, Koi_Fish, Tomte]
+        # classes that are genuinely witnessed by auxiliary channels in real IFOs
+        classes: [Scattered_Light, Whistle, Power_Line]
         min_confidence: 0.9         # GravitySpy ML confidence cut
         snr_range: [7.5, 100]       # catalogue SNR window
         max_per_class: 200          # cap glitches downloaded per class
@@ -100,13 +101,13 @@ witness:
             btype: bandpass
             cutoff: [20, 400]
             order: 4
-        per_class:                  # distinct witness signature per glitch class
-            Blip:                   # short / broadband -> wide band, high coherence
+        per_class:                  # witness modelled on each class's real monitor
+            Scattered_Light:        # seismic / length-sensing witness -> low frequency
+                alpha: 0.95
+                filter: {btype: lowpass, cutoff: 60, order: 4}
+            Whistle:                # RF / PSL witness -> high frequency
                 alpha: 0.9
-                filter: {btype: bandpass, cutoff: [40, 400], order: 4}
-            Koi_Fish:               # louder / broader -> mid band, partial coherence
-                alpha: 0.7
-                filter: {btype: bandpass, cutoff: [25, 350], order: 4}
-            Tomte:                  # low-frequency / triangular -> low-pass, weak coherence
-                alpha: 0.5
-                filter: {btype: lowpass, cutoff: 120, order: 4}
+                filter: {btype: bandpass, cutoff: [200, 1000], order: 4}
+            Power_Line:             # mains-voltage / magnetometer witness -> 60 Hz line
+                alpha: 0.98
+                filter: {btype: bandpass, cutoff: [55, 65], order: 4}

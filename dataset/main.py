@@ -57,7 +57,7 @@ def generate_class(config, data_dir, out_dir, device, mode):
         h5f.attrs["label"] = LABELS[mode]
         h5f.attrs["channels"] = np.array(["strain", "witness"], dtype="S")
         if mode == "glitch":
-            # id -> name map for the ``glitch_class`` dataset (0=Blip, 1=Koi_Fish, ...)
+            # id -> name map for the ``glitch_class`` dataset (0=Scattered_Light, ...)
             h5f.attrs["glitch_classes"] = np.array(GLITCH_CLASSES, dtype="S")
 
 

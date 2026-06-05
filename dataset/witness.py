@@ -3,8 +3,9 @@
 GWOSC open data only contains the strain channel, so the witness channel is
 synthesised here. The physical story this models:
 
-* The **strain** carries the *real* glitch transient g(t) (a blip / koi-fish /
-  tomte morphology drawn from the O3a glitch bank, see ``glitches.py``).
+* The **strain** carries the *real* glitch transient g(t) (a scattered-light /
+  whistle / power-line morphology drawn from the O3a glitch bank, see
+  ``glitches.py``) -- classes that genuinely have an auxiliary witness.
 * A witness (auxiliary) sensor would record a copy of that disturbance reaching it
   through an imperfect, frequency-dependent path. We model that path as a linear
   time-invariant (LTI) Butterworth filter ``C`` applied **to the strain glitch**:
@@ -102,7 +103,7 @@ def couple_glitch(strain_glitch, strain_glitch_indep, sample_rate, coupling_cfg,
     auxiliary sensor would record, ``witness = C(strain_glitch)``.
 
     If ``coupling_cfg.per_class`` is set and ``glitch_class``/``class_names`` are
-    provided, each class (Blip/Koi_Fish/Tomte) is coupled with its own ``alpha``/
+    provided, each class (Scattered_Light/Whistle/Power_Line) is coupled with its own ``alpha``/
     ``filter`` so the three classes get distinguishable witness signatures;
     otherwise one global coupling is used for the whole batch.
 

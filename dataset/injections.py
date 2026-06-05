@@ -86,6 +86,15 @@ def _inject_glitch(config, device, strain_kernel, witness_kernel, strain_psd_i,
     strain_g = strain_g.unsqueeze(1)
     witness_g = witness_g.unsqueeze(1)
 
+    # derive_witness returns unit-RMS glitches. Real strain is ~1e-21, so a unit
+    # amplitude glitch makes the SNR integrand |h|^2 / PSD overflow float32 inside
+    # ml4gw's compute_ifo_snr (SNR -> inf, then reweight scales the glitch to ~0 and
+    # it vanishes from the strain). Rescale each glitch to its background's RMS first
+    # so the SNR computation stays well conditioned; reweight_snrs then sets the
+    # final amplitude to hit the target SNR regardless of this prefactor.
+    strain_g = strain_g * strain_kernel.std(dim=-1, keepdim=True)
+    witness_g = witness_g * witness_kernel.std(dim=-1, keepdim=True)
+
     target_strain_snr = _sample_target_snr(config.glitch.snr.strain, batch_size, device)
     target_witness_snr = _sample_target_snr(config.glitch.snr.witness, batch_size, device)
 

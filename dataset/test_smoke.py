@@ -1,10 +1,11 @@
 """Offline smoke test for the witness-channel toy dataset generator.
 
-Creates a synthetic strain background (so no GWOSC download is needed), runs the
-injection pipeline for all three classes, and checks:
+Creates a synthetic strain background and a synthetic glitch bank (so no GWOSC or
+GravitySpy download is needed), runs the injection pipeline for all three classes,
+and checks:
   * output shape (batch, 2, T) and finiteness,
-  * the witness asymmetry: for glitches the witness is correlated with the strain
-    transient, while for signals it is not.
+  * the witness asymmetry: for glitches the witness (synthesised from the strain
+    glitch) is correlated with the strain transient, while for signals it is not.
 
 Run with:  python test_smoke.py
 """
@@ -14,10 +15,10 @@ from pathlib import Path
 
 import h5py
 import numpy as np
-import torch
 
 from utils import load_config
 from injections import injection
+from glitches import make_synthetic_glitch_bank
 
 
 def _make_fake_background(bg_dir, sample_rate, seconds=240):
@@ -56,6 +57,18 @@ def main():
     with tempfile.TemporaryDirectory() as tmp:
         bg_dir = Path(tmp) / "background_data"
         _make_fake_background(bg_dir, config.general.sample_rate)
+
+        # Offline synthetic glitch bank so the default 'gravityspy' source works
+        # without network access.
+        bank = make_synthetic_glitch_bank(
+            Path(tmp) / "glitch_bank.h5",
+            sample_rate=config.general.sample_rate,
+            duration=config.general.waveform_duration,
+            right_pad=config.general.right_pad,
+            classes=config.glitch.gravityspy.classes,
+            n_per_class=8,
+        )
+        config.glitch.gravityspy.bank_path = str(bank)
 
         results = {}
         for mode in ("background", "signal", "glitch"):

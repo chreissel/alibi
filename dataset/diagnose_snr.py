@@ -16,6 +16,8 @@ For each class we report:
   (c) display check    -- gwpy Q-scan peak normalised energy (what the eye sees).
 """
 
+from pathlib import Path
+
 import torch
 
 from ml4gw.transforms import SpectralDensity, Whiten
@@ -36,6 +38,20 @@ def _summary(name, x):
 def main():
     device = "cpu"
     config = load_config(config_path="configs/config_H1.yaml")
+
+    # Offline synthetic glitch bank so the default 'gravityspy' source works here.
+    if getattr(config.glitch, "source", None) == "gravityspy":
+        import tempfile
+        from glitches import make_synthetic_glitch_bank
+
+        bank = make_synthetic_glitch_bank(
+            Path(tempfile.mkdtemp()) / "glitch_bank.h5",
+            sample_rate=config.general.sample_rate,
+            duration=config.general.waveform_duration,
+            right_pad=config.general.right_pad,
+            classes=config.glitch.gravityspy.classes,
+        )
+        config.glitch.gravityspy.bank_path = str(bank)
 
     sample_rate = config.general.sample_rate
     f_min = config.general.f_min

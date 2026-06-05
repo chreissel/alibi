@@ -49,9 +49,23 @@ snr_reweighting:
     func: ml4gw.distributions.PowerLaw
     args: [12, 100, -3]
 
-# --- glitch (SineGaussian) --------------------------------------------------
+# --- glitch -----------------------------------------------------------------
 glitch:
-    prior:
+    # 'gravityspy' -> real O3a Blip/Koi_Fish/Tomte morphologies (build the bank
+    #                 first with download_glitches.py). 'sine_gaussian' -> ad-hoc
+    #                 bursts from `prior` below (no data access needed).
+    source: gravityspy
+    gravityspy:
+        run: O3a
+        ifo: H1
+        classes: [Blip, Koi_Fish, Tomte]
+        min_confidence: 0.9         # GravitySpy ML confidence cut
+        snr_range: [7.5, 100]       # catalogue SNR window
+        max_per_class: 200          # cap glitches downloaded per class
+        bank_path: data/glitch_bank.h5
+        catalog_path: null          # local GravitySpy catalogue (CSV/HDF5); null
+                                    # -> fetch over the network via gwpy
+    prior:                          # used only when source == sine_gaussian
         quality:
             func: torch.distributions.Uniform
             args: [3.0, 30.0]

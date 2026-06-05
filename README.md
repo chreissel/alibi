@@ -18,7 +18,7 @@ physical basis of glitch vetoing, and it is what this dataset encodes across thr
 | Class          | Strain channel (H1)                    | Witness channel                         |
 |----------------|----------------------------------------|-----------------------------------------|
 | **Signal**     | real noise + injected gravitational wave (GW) signal        | noise only (a GW does not couple here)  |
-| **Glitch**     | real noise + injected glitch transient | noise + coupled copy of the glitch  |
+| **Glitch**     | real noise + injected **real glitch** (O3a blip/koi-fish/tomte) | noise + LTI-coupled copy synthesised *from* the strain glitch |
 | **Background** | real noise only                        | noise only                              |
 
 The signal and glitch transients are placed at the same time location, so the witness, not the arrival time, is the discriminator.
@@ -27,11 +27,14 @@ The signal and glitch transients are placed at the same time location, so the wi
 
 * **Signals**: ml4gw CBC waveforms (`IMRPhenomD`), projected onto the detector and rescaled
   to a target network SNR (`ml4gw.gw.reweight_snrs`). We start by considering shorter signals from binary black hole merging.
-* **Glitches**: ml4gw ad-hoc `SineGaussian` transients. The glitch source is what the
-  witness sees; it couples into the strain through an *LTI Butterworth filter*. Only a
-  fraction `alpha` of the strain-glitch power is coherent with the witness (the rest is an
-  independent strain-only component) — so `alpha` directly sets how informative the witness
-  is.
+* **Glitches**: *real* O3a glitch morphologies — **Blip**, **Koi_Fish**, **Tomte** —
+  selected from the GravitySpy catalogue and cropped from GWOSC strain into a *glitch bank*
+  (`download_glitches.py` → `glitches.py`). The real glitch goes into the **strain**, and the
+  **witness is synthesised from it** by an *LTI Butterworth filter* (`witness = C(strain
+  glitch)`). Only a fraction `alpha` of the witness power is coherent with the strain glitch
+  (the rest is an independent component), so `alpha` sets how informative the witness is.
+  (These classes have no real auxiliary witness, so the witness is a deliberate model; an
+  ad-hoc `SineGaussian` source is also available via `glitch.source: sine_gaussian`.)
 * **Background**: real H1 strain from GWOSC O3a; the witness background is synthesised
   Gaussian noise.
 * **Whitening**: per-channel PSD estimation + `ml4gw.transforms.Whiten`.
@@ -57,7 +60,19 @@ pip install -r requirements.txt
    This writes `./data/background_data/background-*.hdf5`. 
    It can be omitted when working on the FASRC cluster since the O3a dataset is already downloaded and available following the path: `/n/holystore01/LABS/iaifi_lab/Lab/creissel/SparseBank/background_data/`.
 
-2. **Generate the dataset**:
+2. **Build the glitch bank** (real O3a Blip/Koi_Fish/Tomte; needs GravitySpy + GWOSC access):
+
+   ```bash
+   python download_glitches.py --config configs/config_H1.yaml
+   # or, with a locally downloaded GravitySpy catalogue:
+   python download_glitches.py --config configs/config_H1.yaml --catalog ./gravityspy_O3a.csv
+   ```
+   This writes the bank to `glitch.gravityspy.bank_path` (default `data/glitch_bank.h5`).
+   To develop without any data access, build offline stand-ins instead:
+   `python download_glitches.py --config configs/config_H1.yaml --synthetic`
+   (or set `glitch.source: sine_gaussian` to skip the bank entirely).
+
+3. **Generate the dataset**:
 
    ```bash
    python main.py --config configs/config_H1.yaml --data ./data/background_data --out ./out
@@ -71,14 +86,18 @@ One HDF5 file per class, each containing:
 * `data`  — `(N, 2, T)` float array, channel order **`[strain, witness]`** (whitened),
   with `T = waveform_duration * sample_rate`.
 * `label` — `(N,)` int: `0=background, 1=signal, 2=glitch`.
-* one dataset per sampled parameter (e.g. `snr`, `chirp_mass` for signals; `frequency`,
-  `quality`, `strain_snr`, `witness_snr` for glitches).
+* one dataset per sampled parameter (e.g. `snr`, `chirp_mass` for signals;
+  `glitch_class` (0=Blip, 1=Koi_Fish, 2=Tomte), `gravityspy_snr`, `peak_frequency`,
+  `strain_snr`, `witness_snr` for glitches).
 * attrs: `label` (the class id) and `channels` (`[strain, witness]`).
 
 ## Key config knobs (`dataset/configs/config_H1.yaml`)
 
 * `general` — detector, sample rate, window duration, counts, GWOSC run.
 * `waveform` / `snr_reweighting` — CBC prior and signal SNR distribution.
-* `glitch.prior` / `glitch.snr` — SineGaussian parameter prior and per-channel SNRs.
+* `glitch.source` — `gravityspy` (real O3a glitches) or `sine_gaussian` (ad-hoc).
+* `glitch.gravityspy` — run/ifo, glitch `classes`, GravitySpy confidence + SNR cuts,
+  `max_per_class`, and `bank_path` for the downloaded glitch bank.
+* `glitch.snr` — per-channel (strain/witness) target SNR distributions.
 * `witness.coupling.alpha` — strain↔witness coherence (the main "how useful is the witness"
-  knob); `witness.coupling.filter` — the Butterworth coupling band.
+  knob); `witness.coupling.filter` — the Butterworth coupling band (`witness = C(strain glitch)`).

@@ -4,10 +4,11 @@ Two kinds of transients are produced here, both with ml4gw:
 
 * ``generate_signals`` -- astrophysical CBC (BBH) signals, projected onto the
   detector(s). Adapted from chreissel/GWDatasetGeneration.
-* ``generate_glitch_sources`` -- ad-hoc SineGaussian transients used to model
-  instrumental glitches. These return a single-channel "glitch source" time
-  series g(t); the coupling of that source into the strain and witness channels
-  is handled in ``witness.py``.
+* ``generate_glitch_sources`` -- the glitch transient that goes into the strain.
+  By default these are *real* O3a Blip/Koi_Fish/Tomte morphologies sampled from a
+  glitch bank (``glitches.py``); a SineGaussian fallback is also available. The
+  returned single-channel g(t) is the strain glitch, and the witness is
+  synthesised *from* it in ``witness.py``.
 """
 
 import importlib
@@ -116,9 +117,34 @@ def generate_signals(config, device: str):
 
 
 def generate_glitch_sources(config, device: str):
-    """Generate single-channel SineGaussian glitch sources g(t).
+    """Generate single-channel strain-domain glitch sources g(t) of shape (batch, time).
 
-    Returns a tensor of shape (batch, time) and the sampled glitch parameters.
+    Selected by ``config.glitch.source``:
+
+    * ``gravityspy`` (default) -- real O3a Blip/Koi_Fish/Tomte morphologies sampled
+      from the glitch bank at ``config.glitch.gravityspy.bank_path`` (built by
+      ``download_glitches.py`` or, offline, by ``glitches.make_synthetic_glitch_bank``).
+    * ``sine_gaussian`` -- ad-hoc SineGaussian bursts from ``config.glitch.prior``.
+
+    The witness is later synthesised *from* this strain glitch (see ``witness.py``).
+    """
+    source_type = getattr(config.glitch, "source", "sine_gaussian")
+    if source_type == "gravityspy":
+        from glitches import sample_glitch_sources
+
+        return sample_glitch_sources(
+            config.glitch.gravityspy.bank_path, config.general.batch_size, device
+        )
+    if source_type == "sine_gaussian":
+        return _generate_sine_gaussian_sources(config, device)
+    raise ValueError(
+        f"Unknown glitch source {source_type!r} (use 'gravityspy' or 'sine_gaussian')."
+    )
+
+
+def _generate_sine_gaussian_sources(config, device: str):
+    """Ad-hoc SineGaussian glitch sources g(t) of shape (batch, time).
+
     The waveform is intentionally returned un-normalised (hrss is sampled but the
     final amplitude is set by SNR reweighting in the injection step).
     """

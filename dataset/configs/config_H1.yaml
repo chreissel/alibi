@@ -70,7 +70,7 @@ glitch:
     snr:
         strain:                     # how loud the glitch is in the strain channel
             func: ml4gw.distributions.PowerLaw
-            args: [8, 50, -3]
+            args: [12, 100, -3]
         witness:                    # how loud it is in the (well-measured) witness
             func: torch.distributions.Uniform
             args: [15.0, 50.0]
@@ -81,7 +81,7 @@ witness:
         color: white                # 'white' or 'powerlaw' (with `index`)
     coupling:
         type: lti                   # LTI Butterworth coupling
-        alpha: 0.6                  # fraction of strain-glitch power coherent w/ witness
+        alpha: 1.0                  # fraction of strain-glitch power coherent w/ witness
         filter:
             btype: bandpass
             cutoff: [20, 400]

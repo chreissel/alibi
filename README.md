@@ -89,7 +89,8 @@ One HDF5 file per class, each containing:
 * one dataset per sampled parameter (e.g. `snr`, `chirp_mass` for signals;
   `glitch_class` (0=Blip, 1=Koi_Fish, 2=Tomte), `gravityspy_snr`, `peak_frequency`,
   `strain_snr`, `witness_snr` for glitches).
-* attrs: `label` (the class id) and `channels` (`[strain, witness]`).
+* attrs: `label` (the class id) and `channels` (`[strain, witness]`); `glitch.h5` also
+  has `glitch_classes` (the `glitch_class` id→name map).
 
 ## Key config knobs (`dataset/configs/config_H1.yaml`)
 
@@ -101,3 +102,5 @@ One HDF5 file per class, each containing:
 * `glitch.snr` — per-channel (strain/witness) target SNR distributions.
 * `witness.coupling.alpha` — strain↔witness coherence (the main "how useful is the witness"
   knob); `witness.coupling.filter` — the Butterworth coupling band (`witness = C(strain glitch)`).
+* `witness.coupling.per_class` — optional per-class `alpha`/`filter` overrides giving
+  Blip/Koi_Fish/Tomte distinguishable witness signatures.

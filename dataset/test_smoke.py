@@ -58,7 +58,7 @@ def main():
         _make_fake_background(bg_dir, config.general.sample_rate)
 
         results = {}
-        for mode in ("background", "signal", "glitch"):
+        for mode in ("background", "signal", "glitch", "signal_glitch"):
             data, params = injection(config, data_dir=bg_dir, device=device, mode=mode)
             arr = data.detach().cpu().numpy()
             assert arr.ndim == 3 and arr.shape[1] == 2, f"{mode}: bad shape {arr.shape}"
@@ -66,15 +66,21 @@ def main():
             results[mode] = _transient_corr(
                 arr, config.general.sample_rate, config.general.right_pad
             )
-            print(f"{mode:<10} shape={arr.shape}  |strain-witness corr|={results[mode]:.3f}  "
+            print(f"{mode:<14} shape={arr.shape}  |strain-witness corr|={results[mode]:.3f}  "
                   f"params={sorted(params.keys())}")
 
-        # Asymmetry: glitches couple into the witness, signals do not.
+        # Asymmetry: glitches couple into the witness, signals do not. The combined
+        # signal+glitch class also couples (the blip is present), unlike pure signals.
         assert results["glitch"] > results["signal"], (
             f"expected glitch corr ({results['glitch']:.3f}) > "
             f"signal corr ({results['signal']:.3f})"
         )
-        print("\nOK: witness is correlated for glitches and not for signals.")
+        assert results["signal_glitch"] > results["signal"], (
+            f"expected signal_glitch corr ({results['signal_glitch']:.3f}) > "
+            f"signal corr ({results['signal']:.3f})"
+        )
+        print("\nOK: witness is correlated for glitches (incl. signal+glitch) and not "
+              "for signals.")
 
 
 if __name__ == "__main__":

@@ -13,13 +13,14 @@ transients, and adds a **synthetic witness channel** that is coupled to glitches
 
 In a real interferometer, a witness (auxiliary) sensor records instrumental/environmental
 disturbances but does **not** respond to gravitational waves. That asymmetry is the
-physical basis of glitch vetoing, and it is what this dataset encodes across three classes:
+physical basis of glitch vetoing, and it is what this dataset encodes across four classes:
 
-| Class          | Strain channel (H1)                    | Witness channel                         |
-|----------------|----------------------------------------|-----------------------------------------|
-| **Signal**     | real noise + injected gravitational wave (GW) signal        | noise only (a GW does not couple here)  |
-| **Glitch**     | real noise + injected blip glitch      | noise + witness copy derived from the blip |
-| **Background** | real noise only                        | noise only                              |
+| Class             | Strain channel (H1)                              | Witness channel                            |
+|-------------------|--------------------------------------------------|--------------------------------------------|
+| **Signal**        | real noise + injected gravitational wave (GW) signal | noise only (a GW does not couple here) |
+| **Glitch**        | real noise + injected blip glitch                | noise + witness copy derived from the blip |
+| **Signal+glitch** | real noise + injected GW signal + injected blip  | noise + witness copy derived from the blip |
+| **Background**    | real noise only                                  | noise only                                 |
 
 The signal and glitch transients are placed at the same time location, so the witness, not the arrival time, is the discriminator.
 
@@ -35,6 +36,10 @@ The signal and glitch transients are placed at the same time location, so the wi
   small propagation lag) and mixed with independent sensor noise. Only a fraction `alpha`
   of the witness-glitch power is coherent with the strain blip — so `alpha` directly sets
   how informative the witness is.
+* **Signal+glitch**: a coincident CBC signal and blip injected together. The signal sits
+  in the strain only; the blip appears in both strain and witness. This is the "real signal
+  contaminated by a glitch" case, where the witness flags the glitch without responding to
+  the astrophysical signal.
 * **Background**: real H1 strain from GWOSC O3a; the witness background is synthesised
   Gaussian noise.
 * **Whitening**: per-channel PSD estimation + `ml4gw.transforms.Whiten`.
@@ -65,7 +70,7 @@ pip install -r requirements.txt
    ```bash
    python main.py --config configs/config_H1.yaml --data ./data/background_data --out ./out
    ```
-   This writes `background.h5`, `signal.h5`, `glitch.h5` into `./out`.
+   This writes `background.h5`, `signal.h5`, `glitch.h5`, `signal_glitch.h5` into `./out`.
 
 ## Output format
 
@@ -73,7 +78,7 @@ One HDF5 file per class, each containing:
 
 * `data`  — `(N, 2, T)` float array, channel order **`[strain, witness]`** (whitened),
   with `T = waveform_duration * sample_rate`.
-* `label` — `(N,)` int: `0=background, 1=signal, 2=glitch`.
+* `label` — `(N,)` int: `0=background, 1=signal, 2=glitch, 3=signal_glitch`.
 * one dataset per sampled parameter (e.g. `snr`, `chirp_mass` for signals; `frequency`,
   `quality`, `strain_snr`, `witness_snr` for glitches).
 * attrs: `label` (the class id) and `channels` (`[strain, witness]`).

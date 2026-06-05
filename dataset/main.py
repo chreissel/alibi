@@ -1,9 +1,9 @@
 """Generate the witness-channel toy dataset.
 
-Produces one HDF5 file per class (background.h5, signal.h5, glitch.h5). Each file
-contains:
+Produces one HDF5 file per class (background.h5, signal.h5, glitch.h5,
+signal_glitch.h5). Each file contains:
   * ``data``  : (N, 2, T) float array, channel order [strain, witness] (whitened)
-  * ``label`` : (N,) int   (0=background, 1=signal, 2=glitch)
+  * ``label`` : (N,) int   (0=background, 1=signal, 2=glitch, 3=signal_glitch)
   * one dataset per sampled parameter (e.g. ``snr``, ``chirp_mass``, glitch params)
 """
 

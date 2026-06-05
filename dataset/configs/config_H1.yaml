@@ -6,6 +6,8 @@ general:
     waveform_duration: 1    # duration of the analysis window [s]
     sample_rate: 4096
     right_pad: 0.1          # coalescence point [s] from right edge of window
+    time_jitter: 0.2        # +/- random time shift [s] applied to every injection
+                            # (signal and glitch jittered independently)
     f_min: 20
     f_max: 2048
     f_ref: 20

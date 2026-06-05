@@ -51,11 +51,44 @@ def _inject_center(kernel, response, kernel_size, pad):
     return injected
 
 
+def _time_jitter(response, config, sample_rate, device):
+    """Randomly shift each batch element in time (zero-padded).
+
+    Returns ``(shifted, shifts_seconds)``. The shift is drawn per element from a
+    uniform distribution of half-width ``config.general.time_jitter`` seconds. The
+    transient nominally peaks ``right_pad`` s from the right edge of the injected
+    region, so there is only ``right_pad`` s of room on the late side; the range is
+    clipped to the room available on each side (with a small guard) so a transient is
+    never pushed out of the analysis window. All channels of ``response`` are shifted
+    by the same amount, so a glitch's strain and witness copies stay aligned.
+    """
+    b, c, t = response.shape
+    time_jitter = float(getattr(config.general, "time_jitter", 0.0))
+    jit = int(round(time_jitter * sample_rate))
+    if jit <= 0:
+        return response, torch.zeros(b, device=device)
+
+    peak = int(round(config.general.right_pad * sample_rate))  # samples from right edge
+    guard = int(round(0.05 * sample_rate))                     # keep the body in-window
+    hi = min(jit, max(0, peak - guard))                        # room on the late side
+    lo = -min(jit, max(0, t - peak - guard))                   # room on the early side
+    if hi <= lo:
+        return response, torch.zeros(b, device=device)
+
+    shifts = torch.randint(lo, hi + 1, (b,), device=device)
+    src = torch.arange(t, device=device).view(1, t) - shifts.view(b, 1)
+    valid = (src >= 0) & (src < t)
+    idx = src.clamp(0, t - 1).unsqueeze(1).expand(b, c, t)
+    shifted = torch.gather(response, -1, idx) * valid.unsqueeze(1).to(response.dtype)
+    return shifted, shifts.to(torch.float32) / sample_rate
+
+
 def _inject_signal(config, device, strain_kernel, strain_psd_i,
                    sample_rate, f_min, kernel_size, pad):
     """Inject a CBC signal into the strain kernel; the witness is left untouched."""
     batch_size = config.general.batch_size
     waveforms, params = generate_signals(config, device)
+    waveforms, params["time_shift"] = _time_jitter(waveforms, config, sample_rate, device)
     target_snrs = _sample_target_snr(config.snr_reweighting, batch_size, device)
     waveforms = reweight_snrs(
         responses=waveforms, target_snrs=target_snrs, psd=strain_psd_i,
@@ -85,6 +118,12 @@ def _inject_glitch(config, device, strain_kernel, witness_kernel, strain_psd_i,
     )
     strain_g = strain_g.unsqueeze(1)
     witness_g = witness_g.unsqueeze(1)
+
+    # Jitter the strain and witness copies together (same physical disturbance, so
+    # the same time shift) before reweighting.
+    glitch = torch.cat([strain_g, witness_g], dim=1)
+    glitch, params["time_shift"] = _time_jitter(glitch, config, sample_rate, device)
+    strain_g, witness_g = glitch[:, :1], glitch[:, 1:]
 
     # derive_witness returns unit-RMS glitches. Real strain is ~1e-21, so a unit
     # amplitude glitch makes the SNR integrand |h|^2 / PSD overflow float32 inside
@@ -196,9 +235,11 @@ def injection(config, data_dir: str, device: str, mode: str):
         )
 
     elif mode == "signal_glitch":
-        # Coincident signal + blip: the signal lives in the strain only, while the
-        # blip appears in both strain and witness. The witness therefore flags the
-        # glitch contamination without responding to the astrophysical signal.
+        # Near-coincident signal + blip: the signal lives in the strain only, while
+        # the blip appears in both strain and witness. The signal and glitch are
+        # jittered independently, so they are not perfectly aligned in time. The
+        # witness therefore flags the glitch contamination without responding to the
+        # astrophysical signal.
         strain_kernel, sig_params = _inject_signal(
             config, device, strain_kernel, strain_psd_i,
             sample_rate, f_min, kernel_size, pad,
@@ -207,6 +248,9 @@ def injection(config, data_dir: str, device: str, mode: str):
             config, device, strain_kernel, witness_kernel, strain_psd_i,
             witness_psd_i, sample_rate, f_min, f_max, kernel_size, pad,
         )
+        # Distinct keys so the two independent time shifts both survive the merge.
+        sig_params["signal_time_shift"] = sig_params.pop("time_shift")
+        glitch_params["glitch_time_shift"] = glitch_params.pop("time_shift")
         params = {**sig_params, **glitch_params}
 
     # mode == "background": inject nothing.

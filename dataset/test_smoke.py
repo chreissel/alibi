@@ -23,8 +23,11 @@ from injections import injection
 def _make_fake_background(bg_dir, sample_rate, seconds=240):
     bg_dir.mkdir(parents=True, exist_ok=True)
     n = int(seconds * sample_rate)
-    # Unit-variance coloured-ish noise is unnecessary; white is fine for a smoke test.
-    data = np.random.randn(n).astype(np.float64)
+    # White noise is fine for a smoke test, but it must sit at the real strain scale
+    # (~1e-21): CBC signals are generated at physical amplitude, so a unit-variance
+    # background would mismatch them by ~21 orders of magnitude and make the SNR
+    # integrand |h|^2 / PSD underflow float32 inside ml4gw's compute_ifo_snr.
+    data = (np.random.randn(n) * 1e-21).astype(np.float64)
     with h5py.File(bg_dir / "background-0-240.hdf5", "w") as f:
         f.create_dataset("H1", data=data)
 

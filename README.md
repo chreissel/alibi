@@ -22,7 +22,7 @@ physical basis of glitch vetoing, and it is what this dataset encodes across fou
 | **Signal+glitch** | real noise + injected GW signal + injected blip  | noise + witness copy derived from the blip |
 | **Background**    | real noise only                                  | noise only                                 |
 
-The signal and glitch transients are placed at the same time location, so the witness, not the arrival time, is the discriminator.
+The signal and glitch transients are placed at the same nominal time location, so the witness, not the arrival time, is the discriminator. A small random time jitter (`general.time_jitter`, up to ±0.2 s by default) is applied to every injection so the transient never sits at a fixed sample. The shift is clipped to the room available in the window, so with the default `right_pad = 0.1 s` the late-side shift is smaller than the early-side one. In the signal+glitch class the signal and glitch are jittered **independently**, so they are only near-coincident rather than perfectly aligned.
 
 ## What is simulated, and how
 

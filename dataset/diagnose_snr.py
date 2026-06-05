@@ -71,7 +71,10 @@ def main():
     torch.manual_seed(config.general.seed)
 
     # --- synthetic strain background (replaces GWOSC) -----------------------
-    strain_bg = torch.randn(batch_size, 1, window_size, device=device)
+    # At the real strain scale (~1e-21): CBC signals are generated at physical
+    # amplitude, so a unit-variance background would underflow the float32 SNR
+    # integrand in ml4gw's compute_ifo_snr.
+    strain_bg = torch.randn(batch_size, 1, window_size, device=device) * 1e-21
 
     spectral_density = SpectralDensity(
         sample_rate=sample_rate, fftlength=fftlength, overlap=overlap, average=average
@@ -106,6 +109,9 @@ def main():
     blip = bandlimit(blip, sample_rate, f_min, f_max)
     strain_g, _ = derive_witness(blip, blip_indep, sample_rate, config.witness.coupling)
     strain_g = strain_g.unsqueeze(1)
+    # Match injections._inject_glitch: rescale the unit-RMS glitch to the background
+    # scale so the float32 SNR integrand stays well conditioned.
+    strain_g = strain_g * strain_kernel.std(dim=-1, keepdim=True)
     strain_g, gl_a = _reweight(strain_g, target, psd_i, sample_rate, f_min)
     gl_b = end_to_end_snr(strain_g)
     print(_summary("glitch (a) reweight SNR", gl_a))

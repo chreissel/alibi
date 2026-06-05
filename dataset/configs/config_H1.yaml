@@ -94,9 +94,19 @@ witness:
     noise:
         color: white                # 'white' or 'powerlaw' (with `index`)
     coupling:
-        type: lti                   # LTI Butterworth coupling
-        alpha: 1.0                  # fraction of strain-glitch power coherent w/ witness
+        type: lti                   # LTI Butterworth coupling (witness = C(strain glitch))
+        alpha: 1.0                  # default witness<->strain-glitch coherence
         filter:
             btype: bandpass
             cutoff: [20, 400]
             order: 4
+        per_class:                  # distinct witness signature per glitch class
+            Blip:                   # short / broadband -> wide band, high coherence
+                alpha: 0.9
+                filter: {btype: bandpass, cutoff: [40, 400], order: 4}
+            Koi_Fish:               # louder / broader -> mid band, partial coherence
+                alpha: 0.7
+                filter: {btype: bandpass, cutoff: [25, 350], order: 4}
+            Tomte:                  # low-frequency / triangular -> low-pass, weak coherence
+                alpha: 0.5
+                filter: {btype: lowpass, cutoff: 120, order: 4}

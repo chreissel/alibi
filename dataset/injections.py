@@ -21,6 +21,7 @@ from ml4gw.gw import compute_network_snr, reweight_snrs
 from utils import load_config
 from waveforms import generate_signals, generate_glitch_sources
 from witness import make_witness_noise, couple_glitch
+from glitches import GLITCH_CLASSES
 
 LABELS = {"background": 0, "signal": 1, "glitch": 2}
 
@@ -141,7 +142,8 @@ def injection(config, data_dir: str, device: str, mode: str):
         src, params = generate_glitch_sources(config, device)
         src_indep, _ = generate_glitch_sources(config, device)
         strain_g, witness_g = couple_glitch(
-            src, src_indep, sample_rate, config.witness.coupling
+            src, src_indep, sample_rate, config.witness.coupling,
+            glitch_class=params.get("glitch_class"), class_names=GLITCH_CLASSES,
         )
         strain_g = strain_g.unsqueeze(1)
         witness_g = witness_g.unsqueeze(1)

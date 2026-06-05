@@ -74,41 +74,76 @@ def _butter_filter(x: torch.Tensor, sample_rate, filt_cfg) -> torch.Tensor:
     return torch.from_numpy(filtered).to(x.device, x.dtype)
 
 
-def couple_glitch(strain_glitch, strain_glitch_indep, sample_rate, coupling_cfg):
+def _resolve_coupling(coupling_cfg, class_name):
+    """Return ``(alpha, filter_cfg)`` for ``class_name``, honouring per-class overrides."""
+    alpha = float(getattr(coupling_cfg, "alpha", 0.8))
+    filt = coupling_cfg.filter
+    per_class = getattr(coupling_cfg, "per_class", None)
+    if class_name is not None and per_class is not None:
+        entry = getattr(per_class, class_name, None)
+        if entry is not None:
+            alpha = float(getattr(entry, "alpha", alpha))
+            filt = getattr(entry, "filter", filt)
+    return min(max(alpha, 0.0), 1.0), filt
+
+
+def _witness_from_strain(strain_glitch, strain_glitch_indep, sample_rate, alpha, filt):
+    """witness = alpha**0.5 * C(strain) + (1-alpha)**0.5 * C(independent)."""
+    coupled = _rms_normalize(_butter_filter(strain_glitch, sample_rate, filt))
+    indep = _rms_normalize(_butter_filter(strain_glitch_indep, sample_rate, filt))
+    return (alpha**0.5) * coupled + ((1.0 - alpha) ** 0.5) * indep
+
+
+def couple_glitch(strain_glitch, strain_glitch_indep, sample_rate, coupling_cfg,
+                  glitch_class=None, class_names=None):
     """Synthesise the witness *from* the (real) strain glitch via an LTI filter.
 
-    The strain carries the real glitch; the witness is the linearly-coupled copy
-    an auxiliary sensor would record, ``witness = C(strain_glitch)``.
+    The strain carries the real glitch; the witness is the linearly-coupled copy an
+    auxiliary sensor would record, ``witness = C(strain_glitch)``.
+
+    If ``coupling_cfg.per_class`` is set and ``glitch_class``/``class_names`` are
+    provided, each class (Blip/Koi_Fish/Tomte) is coupled with its own ``alpha``/
+    ``filter`` so the three classes get distinguishable witness signatures;
+    otherwise one global coupling is used for the whole batch.
 
     Parameters
     ----------
-    strain_glitch : (batch, time) tensor
-        The real glitch as it appears in the strain channel.
-    strain_glitch_indep : (batch, time) tensor
-        An independent glitch realisation used for the witness-only (incoherent)
-        component when ``alpha < 1``.
+    strain_glitch, strain_glitch_indep : (batch, time) tensors
+        The real strain glitch and an independent realisation (used for the
+        incoherent witness component when ``alpha < 1``).
     coupling_cfg : namespace
-        ``type`` (only ``lti`` supported), ``filter`` (btype/cutoff/order) and
-        ``alpha`` (coherence fraction in [0, 1]; 1 -> witness fully coherent with
-        the strain glitch).
+        ``type`` (only ``lti``), ``alpha``, ``filter`` and optional ``per_class``
+        (mapping class name -> ``{alpha, filter}``).
+    glitch_class : (batch,) int tensor, optional
+        Per-example class id; enables per-class coupling.
+    class_names : sequence of str, optional
+        Maps class id -> name for the ``per_class`` lookup (e.g. ``GLITCH_CLASSES``).
 
     Returns
     -------
-    strain_glitch, witness_glitch : (batch, time) tensors
-        Unit-RMS-normalised; absolute amplitude is set later via SNR reweighting.
+    strain_glitch, witness_glitch : (batch, time) tensors (unit RMS).
     """
-    coupling_type = getattr(coupling_cfg, "type", "lti")
-    if coupling_type != "lti":
-        raise ValueError(f"Unsupported coupling type: {coupling_type!r} (only 'lti').")
+    if getattr(coupling_cfg, "type", "lti") != "lti":
+        raise ValueError(f"Unsupported coupling type: {coupling_cfg.type!r} (only 'lti').")
 
-    alpha = float(getattr(coupling_cfg, "alpha", 0.8))
-    alpha = min(max(alpha, 0.0), 1.0)
+    per_class = getattr(coupling_cfg, "per_class", None)
+    if glitch_class is None or class_names is None or per_class is None:
+        alpha, filt = _resolve_coupling(coupling_cfg, None)
+        witness = _witness_from_strain(
+            strain_glitch, strain_glitch_indep, sample_rate, alpha, filt
+        )
+        return _rms_normalize(strain_glitch), _rms_normalize(witness)
 
-    coupled = _rms_normalize(_butter_filter(strain_glitch, sample_rate, coupling_cfg.filter))
-    indep = _rms_normalize(_butter_filter(strain_glitch_indep, sample_rate, coupling_cfg.filter))
-
-    # Power-weighted mix so that the fraction of witness power coherent with the
-    # strain glitch is ~alpha.
-    witness_glitch = (alpha**0.5) * coupled + ((1.0 - alpha) ** 0.5) * indep
-
-    return _rms_normalize(strain_glitch), _rms_normalize(witness_glitch)
+    # Per-class coupling: process each class subset with its own alpha/filter.
+    witness = torch.zeros_like(strain_glitch)
+    ids = glitch_class.detach().cpu()
+    for cid in torch.unique(ids).tolist():
+        alpha, filt = _resolve_coupling(coupling_cfg, class_names[int(cid)])
+        idx = (ids == cid).nonzero(as_tuple=True)[0].to(strain_glitch.device)
+        w = _witness_from_strain(
+            strain_glitch.index_select(0, idx),
+            strain_glitch_indep.index_select(0, idx),
+            sample_rate, alpha, filt,
+        )
+        witness.index_copy_(0, idx, w)
+    return _rms_normalize(strain_glitch), _rms_normalize(witness)
